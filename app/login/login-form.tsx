@@ -40,7 +40,9 @@ export function LoginForm() {
     router.refresh();
   }
 
-  async function handleSendMagicLink() {
+  async function handleSendMagicLink(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+
     setIsSendingLink(true);
     setFormState({});
 
@@ -48,7 +50,8 @@ export function LoginForm() {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        shouldCreateUser: false,
       },
     });
 
@@ -60,21 +63,18 @@ export function LoginForm() {
     }
 
     setFormState({
-      message: "Check your email for a Ruby Baby sign-in link.",
+      message: "Check your email for a sign-in link.",
     });
   }
 
   return (
-    <form
-      onSubmit={handlePasswordSignIn}
-      className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-zinc-200 bg-white p-6 shadow-sm"
-    >
+    <div className="flex w-full max-w-sm flex-col gap-5 rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold text-zinc-950">
           Ruby Baby Dashboard
         </h1>
         <p className="text-sm text-zinc-600">
-          Sign in to view your consignee dashboard.
+          Enter your email and we will send you a sign-in link.
         </p>
       </div>
 
@@ -86,18 +86,6 @@ export function LoginForm() {
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-base text-zinc-950 outline-none transition focus:border-zinc-950"
-        />
-      </label>
-
-      <label className="flex flex-col gap-1 text-sm font-medium text-zinc-800">
-        Password
-        <input
-          type="password"
-          autoComplete="current-password"
-          required
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-base text-zinc-950 outline-none transition focus:border-zinc-950"
         />
       </label>
@@ -114,22 +102,41 @@ export function LoginForm() {
         </p>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={isSubmitting || isSendingLink}
-        className="rounded-md bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
-      >
-        {isSubmitting ? "Signing in..." : "Sign in"}
-      </button>
+      <form onSubmit={handleSendMagicLink}>
+        <button
+          type="submit"
+          disabled={!email || isSubmitting || isSendingLink}
+          className="w-full rounded-md bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
+        >
+          {isSendingLink ? "Sending link..." : "Send sign-in link"}
+        </button>
+      </form>
 
-      <button
-        type="button"
-        onClick={handleSendMagicLink}
-        disabled={!email || isSubmitting || isSendingLink}
-        className="rounded-md border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-900 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-400"
-      >
-        {isSendingLink ? "Sending link..." : "Send magic link"}
-      </button>
-    </form>
+      <div className="border-t border-zinc-200 pt-5">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+          Optional password sign-in
+        </p>
+        <form onSubmit={handlePasswordSignIn} className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1 text-sm font-medium text-zinc-800">
+            Password
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="rounded-md border border-zinc-300 px-3 py-2 text-base text-zinc-950 outline-none transition focus:border-zinc-950"
+            />
+          </label>
+
+          <button
+            type="submit"
+            disabled={!email || !password || isSubmitting || isSendingLink}
+            className="rounded-md border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-900 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-400"
+          >
+            {isSubmitting ? "Signing in..." : "Sign in with password"}
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }
