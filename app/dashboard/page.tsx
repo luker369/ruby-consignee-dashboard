@@ -37,12 +37,15 @@ type ItemRow = {
 
 const formatDate = (value: string | null) => {
   if (!value) return "No date";
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "No date";
 
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
-  }).format(new Date(value));
+  }).format(date);
 };
 
 const formatCurrency = (value: number | null) => {
@@ -65,11 +68,14 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
 
-  if (!user) {
+  if (!user || userError) {
     redirect("/login");
   }
+
+  let loadError: string | null = null;
 
   const { data: consignors, error: consignorsError } = await supabase
     .from("consignors")
@@ -77,9 +83,7 @@ export default async function DashboardPage() {
     .eq("user_id", user.id)
     .order("name", { ascending: true });
 
-  if (consignorsError) {
-    throw new Error(consignorsError.message);
-  }
+  if (consignorsError) loadError = `Could not load account: ${consignorsError.message}`;
 
   const { data: lots, error: lotsError } = await supabase
     .from("lots")
@@ -87,11 +91,9 @@ export default async function DashboardPage() {
     .order("lot_date", { ascending: false })
     .order("created_at", { ascending: false });
 
-  if (lotsError) {
-    throw new Error(lotsError.message);
-  }
+  if (lotsError) loadError = `Could not load lots: ${lotsError.message}`;
 
-  const lotRows = (lots ?? []) as LotRow[];
+  const lotRows = lotsError ? [] : ((lots ?? []) as LotRow[]);
   const lotIds = lotRows.map((lot) => lot.id);
   const { data: items, error: itemsError } = lotIds.length
     ? await supabase
@@ -101,17 +103,15 @@ export default async function DashboardPage() {
         .order("created_at", { ascending: false })
     : { data: [], error: null };
 
-  if (itemsError) {
-    throw new Error(itemsError.message);
-  }
+  if (itemsError) loadError = `Could not load items: ${itemsError.message}`;
 
-  const itemRows = (items ?? []) as ItemRow[];
+  const itemRows = itemsError ? [] : ((items ?? []) as ItemRow[]);
   const itemsByLotId = itemRows.reduce<Record<string, ItemRow[]>>((acc, item) => {
     acc[item.lot_id] = [...(acc[item.lot_id] ?? []), item];
     return acc;
   }, {});
   const accountName =
-    ((consignors ?? []) as ConsignorRow[]).find((consignor) => consignor.name)
+    (consignorsError ? [] : ((consignors ?? []) as ConsignorRow[])).find((consignor) => consignor.name)
       ?.name ?? null;
 
   async function signOut() {
@@ -156,7 +156,14 @@ export default async function DashboardPage() {
           </form>
         </header>
 
-        {lotRows.length === 0 ? (
+        {loadError ? (
+          <section className="rounded-lg border border-red-200 bg-red-50 p-5 shadow-sm">
+            <h2 className="text-base font-semibold text-red-900">
+              This page could not load all dashboard data.
+            </h2>
+            <p className="mt-2 text-sm text-red-800">{loadError}</p>
+          </section>
+        ) : lotRows.length === 0 ? (
           <section className="rounded-lg border border-zinc-200 bg-white p-8 text-center shadow-sm">
             <h2 className="text-lg font-semibold">No linked lots yet</h2>
             <p className="mt-2 text-sm text-zinc-600">
